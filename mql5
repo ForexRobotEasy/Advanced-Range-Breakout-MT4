@@ -1,0 +1,92 @@
+
+// Advanced Range Breakout MT4
+
+// Include necessary libraries
+#include <Trade\Trade.mqh>
+#include <Trade\PositionInfo.mqh>
+#include <Trade\TradeConstants.mqh>
+#include <Trade\TradeErrors.mqh>
+
+// Define constants
+#define SLIPPAGE 5
+#define STOPLOSS_FACTOR 1.5
+#define TRAILING_STOPLOSS_FACTOR 0.5
+#define LOT_SIZE_FACTOR 0.01
+
+// Initialize global variables
+CTrade trade;
+CPositionInfo position;
+
+// Initialize function to handle trade events
+void OnTrade()
+{
+   if (position.SelectByIndex(0))
+   {
+      // Check if current position has a valid stop loss
+      if (position.StopLoss() == 0)
+      {
+         // Calculate stop loss based on breakout range
+         double stopLoss = (position.Entry() - position.LowestPrice()) * STOPLOSS_FACTOR;
+         trade.PositionModify(position.Ticket(), position.Entry(), stopLoss, position.TakeProfit());
+      }
+      // Check if current position has a valid trailing stop loss
+      else if (position.TrailingStop() == 0)
+      {
+         // Calculate trailing stop loss based on breakout range
+         double trailingStopLoss = (position.Entry() - position.LowestPrice()) * TRAILING_STOPLOSS_FACTOR;
+         trade.PositionModify(position.Ticket(), 0, 0, trailingStopLoss);
+      }
+   }
+}
+
+// Initialize function to handle order events
+void OnOrder()
+{
+   Print('Order placed: ', trade.OrderGetTicket());
+}
+
+// Initialize function to calculate lot size based on account equity
+double CalculateLotSize(double equity)
+{
+   return equity * LOT_SIZE_FACTOR;
+}
+
+// Initialize function to enter breakout trades
+void EnterBreakout(double entryPrice, double stopLoss, double takeProfit)
+{
+   // Calculate lot size based on account equity
+   double lotSize = CalculateLotSize(AccountInfoDouble(ACCOUNT_EQUITY));
+   
+   // Enter trade with specified parameters
+   trade.BuyStop(lotSize, entryPrice, stopLoss, takeProfit, 'Breakout Buy');
+   trade.SellStop(lotSize, entryPrice, stopLoss, takeProfit, 'Breakout Sell');
+}
+
+// Initialize function to start the trading robot
+void OnStart()
+{
+   // Subscribe to trade events
+   trade.SubscribeToTradeEvents();
+   
+   // Set slippage
+   trade.SetDeviationInPoints(SLIPPAGE);
+   
+   // Calculate breakout range
+   double range = High[1] - Low[1];
+   
+   // Calculate entry price for breakout trade
+   double entryPrice = High[1] + range;
+   
+   // Calculate stop loss and take profit levels
+   double stopLoss = range * STOPLOSS_FACTOR;
+   double takeProfit = range * STOPLOSS_FACTOR;
+   
+   // Enter breakout trade
+   EnterBreakout(entryPrice, stopLoss, takeProfit);
+   
+   // Set order event handler
+   trade.SetOrderEvent(OnOrder);
+   
+   // Set trade event handler
+   trade.SetTradeEvent(OnTrade);
+}
